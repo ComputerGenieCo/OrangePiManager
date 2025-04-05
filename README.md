@@ -77,6 +77,16 @@ A default `config.json` is provided with the repository. You should modify this 
 }
 ```
 
+#### Mining Configuration
+Before deploying to your devices, edit `scripts/start.sh` to set your wallet address:
+
+```bash
+# Replace the default wallet address with yours
+RCGxKMDxZcBGRZkxvgCRAXGpiQFt8wU7Wq -> YOUR_WALLET_ADDRESS
+```
+
+The script will automatically append the device hostname to your wallet address for easier tracking.
+
 #### Configuration Fields
 - **port**: The port number for the web server.
 - **ssh**: SSH credentials for accessing Orange Pi devices.

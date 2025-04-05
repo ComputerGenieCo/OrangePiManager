@@ -211,7 +211,9 @@ async function updateDevice(ip, forceUpdateScripts = false) {
             await sshCopy(ip, 'scripts/get_device_stats.sh', '/tmp/get_device_stats.sh');
             await sshCopy(ip, 'scripts/control_miner.sh', '/tmp/control_miner.sh');
             await sshCopy(ip, 'scripts/restore_tmux.sh', '/home/orangepi/restore_tmux.sh');
-            await sshExec(ip, 'chmod +x /tmp/get_device_stats.sh /tmp/control_miner.sh /home/orangepi/restore_tmux.sh');
+            await sshCopy(ip, 'scripts/.tmux.conf', '/home/orangepi/.tmux.conf');
+            await sshCopy(ip, 'scripts/start.sh', '/home/orangepi/ccminer/start.sh');
+            await sshExec(ip, 'chmod +x /tmp/get_device_stats.sh /tmp/control_miner.sh /home/orangepi/restore_tmux.sh /home/orangepi/ccminer/start.sh');
         }
 
         const { stdout } = await sshExec(ip, '/tmp/get_device_stats.sh');
