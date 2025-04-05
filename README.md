@@ -23,7 +23,7 @@ git clone https://github.com/ComputerGenieCo/OrangePiManager.git
 cd OrangePiManager
 ```
 
-2. Create a `config.json` file in the project directory. Refer to the **Setup** section for details.
+2. Update the default `config.json` with your network settings and credentials.
 
 3. Start the server:
 ```bash
@@ -37,44 +37,47 @@ http://localhost:3000
 
 ## Setup
 
-### Requirements
+### System Requirements
 
-- **Host System**:
-  - Node.js 20+ (LTS) ([Download Node.js](https://nodejs.org/en/download))
-  - `sshpass` installed
-  - Network access to Orange Pi devices
+#### Manager Host
+- Node.js 20+ (LTS) ([Download Node.js](https://nodejs.org/en/download))
+- `sshpass` package for automated SSH access
+- Network access to Orange Pi devices
 
-- **Orange Pi Devices**:
-  - SSH access enabled
-  - `tmux` installed
-  - `tmux-resurrect` ([Download tmux-resurrect](https://github.com/tmux-plugins/tmux-resurrect.git))
-  - `ccminer` configured ([Download ccminer](https://github.com/Oink70/CCminer-ARM-optimized.git))
-  - Common subnet (default: 192.168.3.0/24)
+#### Mining Devices
+- Orange Pi running Linux
+- SSH server enabled with known credentials
+- Configured on same subnet (default: 192.168.3.0/24)
+- Software stack:
+  - `tmux`
+  - `tmux-resurrect` ([Download](https://github.com/tmux-plugins/tmux-resurrect.git))
+  - `ccminer` in home directory ([Download optimized version](https://github.com/Oink70/CCminer-ARM-optimized.git))
+  - `htop` for system monitoring
 
 ### Configuration
 
-The application uses a `config.json` file for configuration. Place this file in the root of the project directory. Below is an example structure:
+A default `config.json` is provided with the repository. You should modify this file to match your environment:
 
 ```json
 {
     "port": 3000,
     "ssh": {
         "user": "orangepi",
-        "pass": "your-password",
+        "pass": "your-password",  // Change this!
         "maxRetries": 2
     },
     "network": {
-        "start": "192.168.3.1",
+        "start": "192.168.3.1",   // Adjust to match your network
         "end": "192.168.3.254"
     },
     "refreshInterval": 300000,
     "location": {
-        "zipCode": "90210"
+        "zipCode": "90210"        // Set to your location
     }
 }
 ```
 
-### Configuration Fields
+#### Configuration Fields
 - **port**: The port number for the web server.
 - **ssh**: SSH credentials for accessing Orange Pi devices.
   - `user`: SSH username.
@@ -87,13 +90,46 @@ The application uses a `config.json` file for configuration. Place this file in 
 - **location**: Location settings for weather data.
   - `zipCode`: ZIP code for local weather.
 
+### Device Setup
+
+#### Managed Scripts
+The following scripts are automatically deployed to each Orange Pi device:
+
+- **/tmp/get_device_stats.sh**: Collects system metrics including:
+  - CPU temperature across all thermal zones
+  - System uptime in seconds
+  - Current mining hashrate
+  - Miner process status
+
+- **/tmp/control_miner.sh**: Handles miner process control:
+  - Starting miner in tmux session
+  - Graceful miner shutdown
+  - Process cleanup
+
+- **/home/orangepi/restore_tmux.sh**: Manages tmux session restoration:
+  - Creates or restores tmux sessions
+  - Configures multi-pane layout
+  - Integrates with tmux-resurrect
+
+#### Tmux Environment
+Launch the mining environment using:
+```bash
+tmux a -t0 || ./restore_tmux.sh
+```
+
+This command will either:
+- Attach to an existing tmux session, or
+- Create a new session with the following layout:
+  - Top pane: Running `htop` for system monitoring
+  - Bottom pane: Reserved for miner operation
+
 ## Features
 
-### Core Functionality
-- Automatic device discovery on the local network
-- Real-time monitoring and control of mining devices
-- Batch operations for miners
-- Environmental monitoring integration (local weather)
+### System Architecture
+- Server-based monitoring system
+- RESTful API interface
+- Automated device discovery
+- Secure remote execution
 
 ### Monitoring Features
 - **CPU Temperature Monitoring**:
