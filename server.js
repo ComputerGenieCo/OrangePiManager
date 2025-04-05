@@ -26,23 +26,32 @@ const { exec } = require('child_process');
 const { promisify } = require('util');
 const execAsync = promisify(exec);
 
-// 2. Configuration and state
-const config = {
-    port: 3000,
-    ssh: {
-        user: 'orangepi',
-        pass: 'orangepi',
-        maxRetries: 2
-    },
-    network: {
-        start: '192.168.3.1',
-        end: '192.168.3.254'
-    },
-    refreshInterval: 300000, // 5 minutes
-    location: {
-        zipCode: '90210'
+// Ensure Node.js version is 20 or higher
+const [major] = process.versions.node.split('.').map(Number);
+if (major < 20) {
+    console.error(`[ERROR] Node.js 20 or higher is required. Current version: ${process.version}`);
+    process.exit(1);
+}
+
+// Load configuration from config.json
+const configPath = path.join(__dirname, 'config.json');
+let config;
+
+async function loadConfig() {
+    try {
+        const configData = await fs.readFile(configPath, 'utf-8');
+        config = JSON.parse(configData);
+    } catch (error) {
+        console.error(`[ERROR] Failed to load configuration from ${configPath}:`, error.message);
+        process.exit(1);
     }
-};
+
+    // Validate required configuration fields
+    if (!config.ssh || !config.ssh.user || !config.ssh.pass) {
+        console.error('[ERROR] Missing required SSH configuration in config.json');
+        process.exit(1);
+    }
+}
 
 const devices = new Map();
 const weatherCache = {
@@ -54,6 +63,12 @@ const weatherCache = {
 const state = {
     lastUpdateTime: null
 };
+
+// Better console logging
+function log(level, message, ...args) {
+    const timestamp = new Date().toISOString();
+    console[level](`[${timestamp}] ${message}`, ...args);
+}
 
 // 3. HTTP utility functions
 async function makeHttpRequest(url, options = {}) {
@@ -101,14 +116,14 @@ async function getLocalTemperature() {
         const lat = Number(geocodeData[0].lat).toFixed(4);
         const lon = Number(geocodeData[0].lon).toFixed(4);
 
-        console.log(`Getting weather for coordinates: ${lat},${lon}`);
+        log('info', `Getting weather for coordinates: ${lat},${lon}`);
 
         const pointsData = await makeHttpRequest(
             `https://api.weather.gov/points/${lat},${lon}`
         );
 
         if (!pointsData?.properties?.forecastHourly) {
-            console.error('Points response:', JSON.stringify(pointsData, null, 2));
+            log('error', 'Points response:', JSON.stringify(pointsData, null, 2));
             throw new Error('Invalid points response');
         }
 
@@ -129,7 +144,7 @@ async function getLocalTemperature() {
         return { temp, forecast };
 
     } catch (error) {
-        console.error('Weather fetch failed:', error);
+        log('error', 'Weather fetch failed:', error);
         return {
             temp: weatherCache.temp || null,
             forecast: weatherCache.forecast || null
@@ -150,12 +165,12 @@ async function checkPort(ip, port = 22, timeout = 500) {
 }
 
 async function scanNetwork() {
-    console.log('Starting network scan...');
+    log('info', 'Starting network scan...');
     const start = parseInt(config.network.start.split('.')[3]);
     const end = parseInt(config.network.end.split('.')[3]);
     const prefix = config.network.start.split('.').slice(0, 3).join('.');
 
-    console.log(`Scanning range ${config.network.start} to ${config.network.end}`);
+    log('info', `Scanning range ${config.network.start} to ${config.network.end}`);
 
     const allIps = Array.from(
         { length: end - start + 1 },
@@ -166,10 +181,10 @@ async function scanNetwork() {
     const found = allIps.filter((_, i) => results[i]);
 
     if (found.length) {
-        console.log(`Found devices at IPs: ${found.join(', ')}`);
+        log('info', `Found devices at IPs: ${found.join(', ')}`);
     }
 
-    console.log(`Scan complete. Found ${found.length} devices`);
+    log('info', `Scan complete. Found ${found.length} devices`);
     return found;
 }
 
@@ -214,7 +229,7 @@ async function updateDevice(ip, forceUpdateScripts = false) {
             lastUpdate: Date.now()
         });
     } catch (error) {
-        console.error(`Device update failed (${ip}):`, error.message);
+        log('error', `Device update failed (${ip}):`, error.message);
         if (!forceUpdateScripts && error.message.includes('No such file')) {
             return updateDevice(ip, true);
         }
@@ -244,7 +259,7 @@ async function handleMinerControl(ip, action) {
                 await sshExec(deviceIp, `/tmp/control_miner.sh ${cmd}`);
                 await updateDevice(deviceIp);
             } catch (error) {
-                console.error(`Failed to ${cmd} miner on ${deviceIp}:`, error.message);
+                log('error', `Failed to ${cmd} miner on ${deviceIp}:`, error.message);
             }
         }));
         return { success: true, devices: Array.from(devices.values()) };
@@ -332,24 +347,26 @@ async function handleRequest(req, res) {
 
 // 10. Device update scheduling
 async function updateDevices() {
-    console.log('--- Starting device update cycle ---');
+    log('info', '--- Starting device update cycle ---');
     const ips = await scanNetwork();
     if (ips.length === 0) {
-        console.log('No devices found. Check network configuration.');
+        log('warn', 'No devices found. Check network configuration.');
         return;
     }
 
     const startCount = devices.size;
     await Promise.all(ips.map(ip => updateDevice(ip, false)));
     state.lastUpdateTime = new Date().toLocaleString();
-    console.log(`Device update complete. Active devices: ${devices.size} (was: ${startCount})`);
+    log('info', `Device update complete. Active devices: ${devices.size} (was: ${startCount})`);
 }
 
 // 11. Main application startup
 async function main() {
+    await loadConfig();
+    
     const server = http.createServer((req, res) => {
         handleRequest(req, res).catch(error => {
-            console.error('Request failed:', error);
+            log('error', 'Request failed:', error);
             res.writeHead(500);
             res.end('Internal Server Error');
         });
@@ -357,14 +374,18 @@ async function main() {
 
     await new Promise(resolve => {
         server.listen(config.port, '0.0.0.0', () => {
-            console.log(`\nServer running on port ${config.port}\n`);
+            log('info', `\nServer running on port ${config.port}\n`);
             resolve();
         });
     });
 
-    await updateDevices();
-    setInterval(updateDevices, config.refreshInterval);
+    try {
+        await updateDevices();
+        setInterval(updateDevices, config.refreshInterval);
+    } catch (error) {
+        log('error', 'Failed to start device updates:', error);
+    }
 }
 
 // Start the application
-main().catch(console.error);
+main().catch(log.error);

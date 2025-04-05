@@ -1,0 +1,16 @@
+{
+    "port": 3000,
+    "ssh": {
+        "user": "orangepi",
+        "pass": "orangepi",
+        "maxRetries": 2
+    },
+    "network": {
+        "start": "192.168.3.1",
+        "end": "192.168.3.254"
+    },
+    "refreshInterval": 300000,
+    "location": {
+        "zipCode": "90210"
+    }
+}
