@@ -51,8 +51,34 @@ A web-based monitoring and management system for Orange Pi mining devices on you
 - **Orange Pi Devices:**
   - SSH access enabled
   - tmux installed
+  - tmux-resurrect (https://github.com/tmux-plugins/tmux-resurrect.git)
   - ccminer configured
   - Common subnet (default: 192.168.3.0/24)
+
+## Device Scripts
+
+The following scripts are automatically deployed to Orange Pi devices:
+
+### Management Scripts
+- `/tmp/get_device_stats.sh` - Collects system metrics including CPU temperature, uptime, hashrate, and miner status
+- `/tmp/control_miner.sh` - Handles miner process control (start/stop) through tmux sessions
+- `/home/orangepi/restore_tmux.sh` - Creates and configures the standard tmux environment with tmux-resurrect support
+
+### Tmux Session Management
+The system uses tmux with tmux-resurrect for persistent session management. The standard layout is:
+```
+┌─────────────────┐
+│      htop       │
+├─────────────────┤
+│  miner process  │
+└─────────────────┘
+```
+
+Session management is handled through tmux-resurrect, which preserves the layout and running processes across system reboots. To launch or restore the environment:
+```bash
+tmux a -t0 || ./restore_tmux.sh
+```
+This command attempts to attach to an existing session, or creates a new one using the restore_tmux.sh script, which includes tmux-resurrect integration.
 
 ## Quick Start
 
